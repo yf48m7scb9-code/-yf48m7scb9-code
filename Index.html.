@@ -1,0 +1,373 @@
+#   
+<!doctype html>  
+<html lang="en">  
+<head>  
+<meta charset="utf-8" />  
+<meta name="viewport" content="width=device-width,initial-scale=1" />  
+<title>Symphonic Cryptogram BinHex Demo</title>  
+<style>  
+  :root{  
+    --bg:#0b1020; --card:#0f1724; --muted:#9aa4b2; --accent:#7dd3fc;  
+    --glass: rgba(255,255,255,0.04);  
+    --radius:12px; --gap:12px;  
+  }  
+  @media (prefers-color-scheme: light){  
+    :root{--bg:#f6f8fb; --card:#ffffff; --muted:#556; --accent:#0ea5e9; --glass: rgba(0,0,0,0.03)}  
+  }  
+  html,body{height:100%;margin:0;background:linear-gradient(180deg,var(--bg),#071022);font-family:Inter,system-ui,Segoe UI,Roboto,Helvetica,Arial;color:#e6eef6}  
+  .wrap{max-width:1100px;margin:12px auto;padding:12px;display:grid;grid-template-columns:1fr;gap:var(--gap)}  
+  header{display:flex;align-items:center;gap:12px}  
+  h1{font-size:1.05rem;margin:0}  
+  .grid{display:grid;grid-template-columns:1fr;gap:12px}  
+  .row{display:flex;gap:8px;flex-wrap:wrap}  
+  .card{background:linear-gradient(180deg,var(--card),rgba(0,0,0,0.06));padding:12px;border-radius:var(--radius);box-shadow:0 6px 18px rgba(2,6,23,0.6);backdrop-filter: blur(6px)}  
+  label{font-size:0.78rem;color:var(--muted);display:block;margin-bottom:6px}  
+  select,input,button,textarea{font-size:0.95rem;border-radius:8px;border:1px solid rgba(255,255,255,0.06);padding:8px;background:transparent;color:inherit}  
+  button{background:linear-gradient(90deg,var(--accent),#60a5fa);color:#042; border:none;padding:10px 12px;font-weight:600}  
+  button.ghost{background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--accent)}  
+  canvas{width:100%;height:160px;border-radius:8px;display:block;background:#000}  
+  pre{background:var(--glass);padding:10px;border-radius:8px;overflow:auto;max-height:220px;color:var(--muted);font-size:0.85rem}  
+  .controls{display:flex;gap:8px;flex-wrap:wrap}  
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:12px}  
+  footer{font-size:0.78rem;color:var(--muted);margin-top:6px}  
+  .mono{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", monospace}  
+  @media (max-width:720px){  
+    .two{grid-template-columns:1fr}  
+    canvas{height:140px}  
+  }  
+</style>  
+</head>  
+<body>  
+<div class="wrap">  
+  <header>  
+    <div>  
+      <h1>Symphonic Cryptogram BinHex Demo</h1>  
+      <div style="color:var(--muted);font-size:0.86rem">Encode tokens → pack cryptogram → view as binary / hex</div>  
+    </div>  
+  </header>  
+  
+  <div class="grid">  
+    <div class="card">  
+      <div class="row" style="align-items:center">  
+        <div style="flex:1">  
+          <label>Audio Source</label>  
+          <select id="source">  
+            <option value="mic">Microphone</option>  
+            <option value="file">Upload WAV</option>  
+            <option value="sine">Test Tone</option>  
+          </select>  
+          <input id="file" type="file" accept="audio/*" style="display:none;margin-top:8px">  
+        </div>  
+        <div style="width:220px">  
+          <label>Warp Strength</label>  
+          <input id="warp" type="range" min="0" max="1" step="0.01" value="0.25">  
+        </div>  
+      </div>  
+  
+      <div class="row" style="margin-top:12px">  
+        <div class="controls">  
+          <button id="start">Start</button>  
+          <button id="encode">Encode Block</button>  
+          <button id="decode">Decode Block</button>  
+          <button id="showHex" class="ghost">Show Hex</button>  
+          <button id="showBin" class="ghost">Show Binary</button>  
+          <button id="pageHex" class="ghost">Page → Hex</button>  
+          <button id="pageBin" class="ghost">Page → Bin</button>  
+        </div>  
+      </div>  
+    </div>  
+  
+    <div class="two">  
+      <div class="card">  
+        <label>Spectrogram Original</label>  
+        <canvas id="specOrig"></canvas>  
+      </div>  
+      <div class="card">  
+        <label>Spectrogram Reconstructed / Warped</label>  
+        <canvas id="specRecon"></canvas>  
+      </div>  
+    </div>  
+  
+    <div class="two">  
+      <div class="card">  
+        <label>Tokens (latest block)</label>  
+        <pre id="tokens" class="mono">—</pre>  
+      </div>  
+      <div class="card">  
+        <label>Cryptogram / Hex / Binary</label>  
+        <pre id="crypt" class="mono">—</pre>  
+      </div>  
+    </div>  
+  
+    <div class="card">  
+      <label>Binary / Hex Viewer Options</label>  
+      <div style="display:flex;gap:8px;flex-wrap:wrap">  
+        <button id="viewPayloadHex" class="ghost">Payload Hex</button>  
+        <button id="viewPayloadBin" class="ghost">Payload Bin</button>  
+        <button id="viewPageHex" class="ghost">Page Hex</button>  
+        <button id="viewPageBin" class="ghost">Page Bin</button>  
+      </div>  
+      <div style="margin-top:10px">  
+        <label>Viewer Output</label>  
+        <pre id="viewer" class="mono">—</pre>  
+      </div>  
+    </div>  
+  
+    <footer class="card">  
+      <div style="display:flex;justify-content:space-between;align-items:center">  
+        <div style="color:var(--muted)">Local demo — not production crypto</div>  
+        <div style="color:var(--muted)">Tip: use <strong>Encode Block</strong> then <strong>Show Hex</strong></div>  
+      </div>  
+    </footer>  
+  </div>  
+</div>  
+  
+<script>  
+/* Mobile-friendly demo: encode tokens, pack cryptogram, show hex/binary, and serialize page */  
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();  
+let analyser, mediaStream, bufferSource;  
+const FFT = 2048;  
+const specOrig = document.getElementById('specOrig').getContext('2d');  
+const specRecon = document.getElementById('specRecon').getContext('2d');  
+let latestBlock = null;  
+let currentCrypt = null;  
+  
+document.getElementById('source').addEventListener('change', e=>{  
+  document.getElementById('file').style.display = e.target.value==='file' ? 'inline-block' : 'none';  
+});  
+document.getElementById('file').addEventListener('change', async e=>{  
+  const f = e.target.files[0];  
+  if(!f) return;  
+  const ab = await f.arrayBuffer();  
+  const audio = await audioCtx.decodeAudioData(ab);  
+  bufferSource = audio;  
+});  
+  
+document.getElementById('start').onclick = async ()=>{  
+  const src = document.getElementById('source').value;  
+  if(src==='mic'){  
+    mediaStream = await navigator.mediaDevices.getUserMedia({audio:true});  
+    const srcNode = audioCtx.createMediaStreamSource(mediaStream);  
+    analyser = audioCtx.createAnalyser();  
+    analyser.fftSize = FFT;  
+    srcNode.connect(analyser);  
+    renderLoop();  
+  } else if(src==='file' && bufferSource){  
+    const bs = audioCtx.createBufferSource();  
+    bs.buffer = bufferSource;  
+    bs.loop = true;  
+    analyser = audioCtx.createAnalyser();  
+    analyser.fftSize = FFT;  
+    bs.connect(analyser);  
+    analyser.connect(audioCtx.destination);  
+    bs.start();  
+    renderLoop();  
+  } else {  
+    const osc = audioCtx.createOscillator();  
+    osc.type='sawtooth';  
+    osc.frequency.value = 220;  
+    analyser = audioCtx.createAnalyser();  
+    analyser.fftSize = FFT;  
+    osc.connect(analyser);  
+    analyser.connect(audioCtx.destination);  
+    osc.start();  
+    renderLoop();  
+  }  
+};  
+  
+function renderLoop(){  
+  requestAnimationFrame(renderLoop);  
+  if(!analyser) return;  
+  const time = new Float32Array(analyser.fftSize);  
+  analyser.getFloatTimeDomainData(time);  
+  drawSpectrogram(time, specOrig, FFT);  
+}  
+  
+function drawSpectrogram(timeData, ctx, N){  
+  const win = hann(N);  
+  const frame = new Float32Array(N);  
+  for(let i=0;i<N;i++) frame[i] = (timeData[i]||0) * win[i];  
+  const spec = rfft(frame);  
+  const mags = spec.magnitude;  
+  latestBlock = {mags, frame};  
+  // draw simple vertical column visualization  
+  const w = ctx.canvas.width = ctx.canvas.clientWidth;  
+  const h = ctx.canvas.height = ctx.canvas.clientHeight;  
+  const img = ctx.createImageData(w,h);  
+  for(let x=0;x<w;x++){  
+    const col = Math.floor(x * mags.length / w);  
+    const val = Math.min(1, Math.log1p(mags[col]) / 6);  
+    for(let y=0;y<h;y++){  
+      const idx = (y*w + x)*4;  
+      const c = Math.floor(255 * val * (1 - y/h));  
+      img.data[idx] = c; img.data[idx+1] = 24; img.data[idx+2] = 200 - c; img.data[idx+3] = 255;  
+    }  
+  }  
+  ctx.putImageData(img, 0, 0);  
+}  
+  
+// Simple encode: detect peaks -> tokens -> pack payload  
+document.getElementById('encode').onclick = ()=>{  
+  if(!latestBlock) return;  
+  const peaks = detect_peaks(latestBlock.mags, 10);  
+  const tokens = peaks.map((p,i)=>({  
+    id: i+1,  
+    type: 'VOICE',  
+    bin: p,  
+    freq: bin_to_freq(p, audioCtx.sampleRate, FFT),  
+    amp: latestBlock.mags[p]  
+  }));  
+  document.getElementById('tokens').textContent = JSON.stringify(tokens, null, 2);  
+  const payload = JSON.stringify({tokens, ts:Date.now()});  
+  const payloadB64 = btoa(unescape(encodeURIComponent(payload)));  
+  // residual: base64 of frame (simple)  
+  const residualB64 = btoa(float32_to_binary(latestBlock.frame));  
+  const crypt = payloadB64 + '::' + residualB64;  
+  currentCrypt = crypt;  
+  document.getElementById('crypt').textContent = crypt.slice(0,240) + (crypt.length>240 ? '…' : '');  
+};  
+  
+// decode: synthesize simple additive partials and draw warped spectrogram  
+document.getElementById('decode').onclick = ()=>{  
+  if(!currentCrypt) return;  
+  const [payloadB64, residualB64] = currentCrypt.split('::');  
+  const payload = JSON.parse(decodeURIComponent(escape(atob(payloadB64))));  
+  const tokens = payload.tokens || [];  
+  const out = synth_from_tokens(tokens, audioCtx.sampleRate, 0.35);  
+  // visual warp: create warped mags and draw  
+  const warped = apply_inverse_warp_visual(tokens, parseFloat(document.getElementById('warp').value), latestBlock.mags.length);  
+  drawWarpedSpectrogram(warped, specRecon);  
+};  
+  
+// show hex / bin of payload or page  
+document.getElementById('showHex').onclick = ()=> showHexOfCurrent();  
+document.getElementById('showBin').onclick = ()=> showBinOfCurrent();  
+document.getElementById('pageHex').onclick = ()=> showHexOfPage();  
+document.getElementById('pageBin').onclick = ()=> showBinOfPage();  
+  
+document.getElementById('viewPayloadHex').onclick = ()=> showHexOfCurrent();  
+document.getElementById('viewPayloadBin').onclick = ()=> showBinOfCurrent();  
+document.getElementById('viewPageHex').onclick = ()=> showHexOfPage();  
+document.getElementById('viewPageBin').onclick = ()=> showBinOfPage();  
+  
+function showHexOfCurrent(){  
+  if(!currentCrypt){ document.getElementById('viewer').textContent='No cryptogram yet'; return; }  
+  const hex = stringToHex(currentCrypt);  
+  document.getElementById('viewer').textContent = hex;  
+}  
+function showBinOfCurrent(){  
+  if(!currentCrypt){ document.getElementById('viewer').textContent='No cryptogram yet'; return; }  
+  const bin = stringToBinary(currentCrypt);  
+  document.getElementById('viewer').textContent = bin;  
+}  
+function showHexOfPage(){  
+  const src = document.documentElement.outerHTML;  
+  document.getElementById('viewer').textContent = stringToHex(src).slice(0,20000);  
+}  
+function showBinOfPage(){  
+  const src = document.documentElement.outerHTML;  
+  document.getElementById('viewer').textContent = stringToBinary(src).slice(0,20000);  
+}  
+  
+/* Utilities */  
+function hann(N){ const w=new Float32Array(N); for(let i=0;i<N;i++) w[i]=0.5*(1-Math.cos(2*Math.PI*i/(N-1))); return w; }  
+function rfft(frame){  
+  const N = frame.length;  
+  const mag = new Float32Array(N/2);  
+  for(let k=0;k<N/2;k++){  
+    let re=0, im=0;  
+    for(let n=0;n<N;n++){  
+      const a = frame[n];  
+      const ang = -2*Math.PI*k*n/N;  
+      re += a*Math.cos(ang);  
+      im += a*Math.sin(ang);  
+    }  
+    mag[k] = Math.sqrt(re*re + im*im);  
+  }  
+  return {magnitude:mag};  
+}  
+function detect_peaks(mags, maxp){  
+  const peaks=[];  
+  for(let i=2;i<mags.length-2;i++){  
+    if(mags[i]>mags[i-1] && mags[i]>mags[i+1]) peaks.push(i);  
+    if(peaks.length>=maxp) break;  
+  }  
+  return peaks;  
+}  
+function bin_to_freq(bin, sr, N){ return Math.round(bin * sr / N * 100)/100; }  
+function float32_to_binary(f32){  
+  // convert Float32Array to binary string  
+  const u8 = new Uint8Array(f32.buffer);  
+  let s=''; for(let i=0;i<u8.length;i++) s+=String.fromCharCode(u8[i]);  
+  return s;  
+}  
+function float32_to_base64(f32){  
+  const u8 = new Uint8Array(f32.buffer);  
+  let s=''; for(let i=0;i<u8.length;i++) s+=String.fromCharCode(u8[i]);  
+  return btoa(s);  
+}  
+function stringToHex(str){  
+  const u8 = new TextEncoder().encode(str);  
+  let out=''; for(let i=0;i<u8.length;i++){ out += u8[i].toString(16).padStart(2,'0'); if((i+1)%32===0) out+='\n'; else out+=' '; }  
+  return out;  
+}  
+function stringToBinary(str){  
+  const u8 = new TextEncoder().encode(str);  
+  let out=''; for(let i=0;i<u8.length;i++){ out += u8[i].toString(2).padStart(8,'0'); if((i+1)%8===0) out+=' '; if((i+1)%64===0) out+='\n'; }  
+  return out;  
+}  
+function synth_from_tokens(tokens, sr, dur){  
+  const len = Math.floor(sr*dur);  
+  const out = new Float32Array(len);  
+  for(const t of tokens){  
+    const f = t.freq || 220;  
+    const amp = Math.min(1, Math.abs(t.amp||0.5));  
+    for(let n=0;n<len;n++){  
+      out[n] += (amp*0.08) * Math.sin(2*Math.PI*f*n/sr);  
+    }  
+  }  
+  const buf = audioCtx.createBuffer(1, len, sr);  
+  buf.getChannelData(0).set(out);  
+  const src = audioCtx.createBufferSource();  
+  src.buffer = buf;  
+  src.connect(audioCtx.destination);  
+  src.start();  
+  return out;  
+}  
+function apply_inverse_warp_visual(tokens, strength, bins){  
+  const map = new Float32Array(bins);  
+  for(let i=0;i<bins;i++){  
+    const f = i / bins;  
+    let shift = 0;  
+    for(const t of tokens){  
+      const tb = (t.bin || 0) / bins;  
+      const d = Math.abs(f - tb);  
+      shift += Math.exp(- (d*20)**2 ) * strength * 0.2;  
+    }  
+    map[i] = Math.max(0, Math.min(1, f - shift));  
+  }  
+  const warped = new Float32Array(bins);  
+  for(let i=0;i<bins;i++){  
+    const srcIdx = Math.floor(map[i]*bins);  
+    warped[i] = latestBlock ? latestBlock.mags[srcIdx] || 0 : 0;  
+  }  
+  return warped;  
+}  
+function drawWarpedSpectrogram(mags, ctx){  
+  const w = ctx.canvas.width = ctx.canvas.clientWidth;  
+  const h = ctx.canvas.height = ctx.canvas.clientHeight;  
+  const img = ctx.createImageData(w,h);  
+  for(let x=0;x<w;x++){  
+    const col = Math.floor(x * mags.length / w);  
+    const val = Math.min(1, Math.log1p(mags[col]) / 6);  
+    for(let y=0;y<h;y++){  
+      const idx = (y*w + x)*4;  
+      const c = Math.floor(255 * val * (1 - y/h));  
+      img.data[idx] = 20; img.data[idx+1] = c; img.data[idx+2] = 200 - c; img.data[idx+3] = 255;  
+    }  
+  }  
+  ctx.putImageData(img, 0, 0);  
+}  
+</script>  
+</body>  
+</html>  
